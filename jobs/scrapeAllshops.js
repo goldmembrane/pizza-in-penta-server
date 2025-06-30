@@ -29,7 +29,7 @@ async function scrapeAllShops() {
         cos(radians(lng) - radians(${PENTAGON_LNG})) +
         sin(radians(${PENTAGON_LAT})) * sin(radians(lat))
       )) AS distance_miles
-    FROM pizza_shop
+    FROM pizzashop
     HAVING distance_miles <= ${RADIUS_MILES}
   `;
 

@@ -37,7 +37,7 @@ async function scrapePopularTimes(placeId) {
 
   try {
     await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-    await page.waitForTimeout(5000);
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     const popularity = await page.evaluate(() => {
       const bars = Array.from(
@@ -60,15 +60,5 @@ async function scrapePopularTimes(placeId) {
     return null;
   }
 }
-
-// ✅ 테스트
-(async () => {
-  const placeId = "ChIJQXXA5yJQtokRcO-h5D1nhbc"; // 예시
-  const result = await scrapePopularTimes(placeId);
-  console.log(
-    "📊 현재 혼잡도:",
-    result !== null ? `${result}%` : "데이터 없음"
-  );
-})();
 
 module.exports = { scrapePopularTimes };
