@@ -14,7 +14,6 @@ const PENTAGON_LAT = 38.8719;
 const PENTAGON_LNG = -77.0563;
 const RADIUS_MILES = 2;
 
-// ✅ 워싱턴 DC 기준 시간으로 현재 시간대 구하기
 function getTimeSlot() {
   const hour = dayjs().tz("America/New_York").hour();
   if (hour < 6) return "00-06";
@@ -23,7 +22,6 @@ function getTimeSlot() {
   return "18-24";
 }
 
-// ✅ 워싱턴 DC 기준으로 영업시간 판단 (오전 11시 ~ 오후 8시)
 function isBusinessHour() {
   const hour = dayjs().tz("America/New_York").hour();
   return hour >= 11 && hour <= 20;
@@ -52,7 +50,7 @@ async function scrapeAllShops() {
   for (const shop of shops) {
     try {
       console.log(`📍 [${shop.name}] 혼잡도 수집 중...`);
-      const popularity = await scrapePopularTimes(shop.placeId);
+      const { popularity, source } = await scrapePopularTimes(shop.placeId);
 
       if (popularity === null) {
         console.warn(`⚠️ ${shop.name}: 혼잡도 추출 실패`);
@@ -65,10 +63,13 @@ async function scrapeAllShops() {
           date: new Date(date),
           timeSlot,
           popularity,
+          source,
         },
       });
 
-      console.log(`✅ 저장 완료: ${shop.name} ${timeSlot} → ${popularity}%`);
+      console.log(
+        `✅ 저장 완료: ${shop.name} ${timeSlot} → ${popularity}% (${source})`
+      );
     } catch (err) {
       console.error(`❌ ${shop.name} 에러:`, err.message);
     }

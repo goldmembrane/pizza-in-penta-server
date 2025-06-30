@@ -6,6 +6,7 @@ puppeteer.use(StealthPlugin());
 
 /**
  * placeId 기준으로 Google Maps의 혼잡도(실시간 or 평균) 스크래핑
+ * @returns {Promise<{popularity: number | null, source: string}>}
  */
 async function scrapePopularTimes(placeId) {
   const browser = await puppeteer.launch({
@@ -47,27 +48,27 @@ async function scrapePopularTimes(placeId) {
         return label && label.includes("현재 붐비는 정도");
       });
 
-      if (!target) return { current: null, average: null };
+      if (!target) return { popularity: null, source: null };
 
       const label = target.getAttribute("aria-label");
-
       const currentMatch = label.match(/현재 붐비는 정도:\s*(\d{1,3})%/);
       const averageMatch = label.match(/\(일반적으로는\s*(\d{1,3})%\)/);
 
-      return {
-        current: currentMatch ? parseInt(currentMatch[1]) : null,
-        average: averageMatch ? parseInt(averageMatch[1]) : null,
-      };
+      if (currentMatch) {
+        return { popularity: parseInt(currentMatch[1]), source: "realtime" };
+      } else if (averageMatch) {
+        return { popularity: parseInt(averageMatch[1]), source: "average" };
+      } else {
+        return { popularity: null, source: null };
+      }
     });
 
     await browser.close();
-
-    // 최종 값: 실시간 > 평균 > null
-    return data.current !== null ? data.current : data.average;
+    return data;
   } catch (err) {
     console.error("❌ Scraping error:", err.message);
     await browser.close();
-    return null;
+    return { popularity: null, source: null };
   }
 }
 

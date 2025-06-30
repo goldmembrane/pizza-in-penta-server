@@ -32,4 +32,5 @@ model ShopMetric {
   popularity      Float?
   deliveryDelay   Float?
   twitterMentions Int?
+  source     String
 }
