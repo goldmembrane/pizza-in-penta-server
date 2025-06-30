@@ -1,27 +1,43 @@
 const { PrismaClient } = require("@prisma/client");
 const { scrapePopularTimes } = require("../scrape/scrapePopularTimes");
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+require("dotenv").config();
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const prisma = new PrismaClient();
 
-// ✅ 기준점: 펜타곤
 const PENTAGON_LAT = 38.8719;
 const PENTAGON_LNG = -77.0563;
 const RADIUS_MILES = 2;
 
-// ✅ 시간대 구분
+// ✅ 워싱턴 DC 기준 시간으로 현재 시간대 구하기
 function getTimeSlot() {
-  const hour = new Date().getHours();
+  const hour = dayjs().tz("America/New_York").hour();
   if (hour < 6) return "00-06";
   if (hour < 12) return "06-12";
   if (hour < 18) return "12-18";
   return "18-24";
 }
 
+// ✅ 워싱턴 DC 기준으로 영업시간 판단 (오전 11시 ~ 오후 8시)
+function isBusinessHour() {
+  const hour = dayjs().tz("America/New_York").hour();
+  return hour >= 11 && hour <= 20;
+}
+
 async function scrapeAllShops() {
-  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  if (!isBusinessHour()) {
+    console.warn("⏰ [워싱턴 기준] 영업시간이 아니므로 수집 건너뜀");
+    return;
+  }
+
+  const date = dayjs().tz("America/New_York").format("YYYY-MM-DD");
   const timeSlot = getTimeSlot();
 
-  // ✅ 펜타곤 반경 2마일 내 매장만 필터링
   const shops = await prisma.$queryRaw`
     SELECT *, 
       (3959 * acos(
@@ -61,7 +77,6 @@ async function scrapeAllShops() {
   await prisma.$disconnect();
 }
 
-// 수동 실행도 가능하게
 if (require.main === module) {
   scrapeAllShops();
 }
