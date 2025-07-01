@@ -10,6 +10,7 @@ puppeteer.use(StealthPlugin());
  */
 async function scrapePopularTimes(placeId) {
   const browser = await puppeteer.launch({
+    executablePath: "/usr/bin/chromium-browser",
     headless: "new",
     args: [
       "--no-sandbox",
@@ -36,7 +37,7 @@ async function scrapePopularTimes(placeId) {
 
   try {
     await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-    await page.waitForTimeout(5000);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     const data = await page.evaluate(() => {
       const elements = Array.from(

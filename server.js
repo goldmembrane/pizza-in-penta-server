@@ -19,7 +19,7 @@ dayjs.extend(timezone);
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // ✅ 워싱턴 기준: 매시 정각마다 혼잡도 수집
 new CronJob(
@@ -109,5 +109,5 @@ app.get("/api/point-metrics", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ 서버 실행 중: http://localhost:${PORT}`);
+  console.log(`✅ 서버 실행 중:${PORT}`);
 });
