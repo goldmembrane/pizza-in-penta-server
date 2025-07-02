@@ -43,17 +43,21 @@ async function scrapeAllShops() {
         cos(radians(lng) - radians(${PENTAGON_LNG})) +
         sin(radians(${PENTAGON_LAT})) * sin(radians(lat))
       )) AS distance_miles
-    FROM pizzashop
+    FROM PizzaShop
     HAVING distance_miles <= ${RADIUS_MILES}
   `;
 
   for (const shop of shops) {
     try {
       console.log(`📍 [${shop.name}] 혼잡도 수집 중...`);
-      const { popularity, source } = await scrapePopularTimes(shop.placeId);
+      const { popularity, source, reason } = await scrapePopularTimes(
+        shop.placeId
+      );
 
       if (popularity === null) {
-        console.warn(`⚠️ ${shop.name}: 혼잡도 추출 실패`);
+        console.warn(
+          `⚠️ ${shop.name}: 혼잡도 추출 실패 (${reason || "알 수 없는 원인"})`
+        );
         continue;
       }
 
