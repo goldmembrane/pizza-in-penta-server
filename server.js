@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 4000;
 
 // ✅ 워싱턴 기준: 매시 정각마다 혼잡도 수집
 new CronJob(
-  "0 * * * *", // 매시 정각 (00:00, 01:00, ..., 23:00)
+  "0 17-22 * * *", // 매일 17시~22시 정각
   async () => {
     console.log("📊 [CRON] 워싱턴 기준 혼잡도 수집 시작");
     await scrapeAllShops();
@@ -33,48 +33,13 @@ new CronJob(
   "America/New_York"
 );
 
-// 포인트 계산: 하루 4회 (워싱턴 기준 → 서버 기준이 UTC라면 변환 필요)
-// ✅ 워싱턴 5:10 AM
-new CronJob(
-  "10 5 * * *", // 매일 5:10 AM
-  async () => {
-    console.log("📈 [CRON] 워싱턴 5:10 포인트 계산");
-    await savePointToDB();
-  },
-  null,
-  true,
-  "America/New_York"
-);
-
-// ✅ 워싱턴 11:10 AM
-new CronJob(
-  "10 11 * * *",
-  async () => {
-    console.log("📈 [CRON] 워싱턴 11:10 포인트 계산");
-    await savePointToDB();
-  },
-  null,
-  true,
-  "America/New_York"
-);
-
-// ✅ 워싱턴 17:10 (5:10 PM)
-new CronJob(
-  "10 17 * * *",
-  async () => {
-    console.log("📈 [CRON] 워싱턴 17:10 포인트 계산");
-    await savePointToDB();
-  },
-  null,
-  true,
-  "America/New_York"
-);
+// 포인트 계산: 하루 1회 (워싱턴 기준 → 서버 기준이 UTC라면 변환 필요)
 
 // ✅ 워싱턴 23:10 (11:10 PM)
 new CronJob(
-  "10 23 * * *",
+  "0 23 * * *", // 매일 23시 정각
   async () => {
-    console.log("📈 [CRON] 워싱턴 23:10 포인트 계산");
+    console.log("📈 [CRON] 워싱턴 23:00 포인트 계산");
     await savePointToDB();
   },
   null,
