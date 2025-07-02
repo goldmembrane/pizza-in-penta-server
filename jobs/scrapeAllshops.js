@@ -24,7 +24,7 @@ function getTimeSlot() {
 
 function isBusinessHour() {
   const hour = dayjs().tz("America/New_York").hour();
-  return hour >= 10 && hour <= 23;
+  return hour >= 9 && hour <= 23;
 }
 
 async function scrapeAllShops() {
