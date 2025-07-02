@@ -1,9 +1,11 @@
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+const fs = require("fs");
 require("dotenv").config();
 
 puppeteer.use(StealthPlugin());
 
+// 무작위 User-Agent
 function getRandomUserAgent() {
   const agents = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -13,51 +15,59 @@ function getRandomUserAgent() {
   return agents[Math.floor(Math.random() * agents.length)];
 }
 
-function getRandomProxy() {
-  const proxies = process.env.PROXIES.split(",");
-  const raw = proxies[Math.floor(Math.random() * proxies.length)];
-  const [host, port, username, password] = raw.split(":");
-  return { host, port, username, password };
+// JSON 프록시 로드
+function loadProxies() {
+  const raw = fs.readFileSync("./proxies.json", "utf-8");
+  return JSON.parse(raw);
 }
 
 async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
-  const url = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
+  const proxies = loadProxies();
+  const proxy = proxies[Math.floor(Math.random() * proxies.length)];
+  const proxyUrl = `http://${proxy.host}:${proxy.port}`;
   const userAgent = getRandomUserAgent();
-  const proxy = getRandomProxy();
-  const proxyUrl = `http://${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`;
+  const url = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
   let browser;
 
-  console.log(`🔁 [Attempt ${attempt}] Using proxy: ${proxyUrl}`);
+  console.log(
+    `🌐 [Attempt ${attempt}] Using proxy: ${proxy.username}@${proxy.host}:${proxy.port}`
+  );
 
   try {
     browser = await puppeteer.launch({
-      // executablePath: "/usr/bin/chromium-browser", // 경로 확인
+      executablePath: "/usr/bin/chromium-browser", // 필요에 따라 변경
       headless: "new",
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-blink-features=AutomationControlled",
-        `--proxy-server=http=${proxy.host}:${proxy.port}`,
+        `--proxy-server=${proxyUrl}`,
       ],
     });
 
     const page = await browser.newPage();
 
+    // 프록시 인증
     await page.authenticate({
       username: proxy.username,
       password: proxy.password,
     });
+
     await page.setUserAgent(userAgent);
     await page.setExtraHTTPHeaders({
       "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
     });
 
+    // 불필요 리소스 차단
     await page.setRequestInterception(true);
     page.on("request", (req) => {
       const blocked = ["image", "stylesheet", "font", "media"];
-      if (blocked.includes(req.resourceType())) req.abort();
-      else req.continue();
+      if (blocked.includes(req.resourceType())) {
+        req.abort();
+      } else {
+        req.continue();
+      }
     });
 
     await page.evaluateOnNewDocument(() => {
@@ -65,12 +75,13 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
     });
 
     await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-    await new Promise((r) => setTimeout(r, 9000)); // 렌더링 대기
+    await new Promise((res) => setTimeout(res, 9000));
 
     const data = await page.evaluate(() => {
       const elements = Array.from(
         document.querySelectorAll("div[aria-label*='현재 붐비는 정도']")
       );
+
       const target = elements.find((el) => {
         const label = el.getAttribute("aria-label");
         return label && label.includes("현재 붐비는 정도");
@@ -108,7 +119,7 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
     if (browser) await browser.close();
 
     if (attempt < maxAttempts) {
-      console.log(`🔄 재시도 중... (${attempt + 1}/${maxAttempts})`);
+      console.log(`🔁 재시도 중... (${attempt + 1}/${maxAttempts})`);
       await new Promise((r) => setTimeout(r, 2000));
       return scrapePopularTimes(placeId, attempt + 1, maxAttempts);
     }
