@@ -8,33 +8,11 @@ dayjs.extend(timezone);
 
 const prisma = new PrismaClient();
 
-// ✅ 시간 가중치 계산 함수 (워싱턴 기준)
-function getTimeWeight(date) {
-  const hour = dayjs(date).tz("America/New_York").hour();
-  if (hour < 6) return 1.5;
-  if (hour < 12) return 1.1;
-  if (hour < 18) return 1.0;
-  return 1.4;
-}
-
-// ✅ 포인트 계산 규칙
-function computeDistribution(real, avg) {
-  if (real === null || avg === null) return null;
-  const diff = real - avg;
-  let bonus = 0;
-
-  if (diff >= 5 && diff < 10) bonus = 1;
-  else if (diff >= 10 && diff < 20) bonus = 2;
-  else if (diff >= 20) bonus = 3;
-
-  return diff > 0 ? diff + bonus : diff;
-}
-
 // ✅ 포인트 계산 → DB 저장 함수
 async function savePointToDB() {
   const allRecords = await prisma.shopMetric.findMany({
     where: {
-      source: { in: ["realtime", "average"] },
+      source: { in: ["realtime", "average"] }, // source 상관 없이 모두 가져옴
     },
     orderBy: [{ date: "desc" }],
     take: 1000,
@@ -63,33 +41,15 @@ async function savePointToDB() {
     return sameDate && inSlot;
   });
 
-  const selectedByShop = {};
+  // ✅ 단순히 모든 popularity 합산 (source 상관 없이)
+  let finalPoint = 0;
   for (const record of filtered) {
-    if (!selectedByShop[record.shopId] || record.source === "realtime") {
-      selectedByShop[record.shopId] = record;
+    if (record.popularity !== null) {
+      finalPoint += record.popularity;
     }
   }
 
-  let totalDistribution = 0;
-
-  for (const r of Object.values(selectedByShop)) {
-    const base = await prisma.shopMetric.findFirst({
-      where: {
-        shopId: r.shopId,
-        date: { lt: r.date },
-        timeSlot: r.timeSlot,
-        source: "average",
-      },
-      orderBy: { date: "desc" },
-    });
-
-    const dist = computeDistribution(r.popularity, base?.popularity ?? null);
-    if (dist !== null) totalDistribution += dist;
-  }
-
-  const timeWeight = getTimeWeight(latestRecord.date);
-  const finalPoint = Math.round(totalDistribution * timeWeight);
-
+  // ✅ 포인트 DB 저장
   await prisma.pointMetric.upsert({
     where: {
       date_timeSlot: {
@@ -111,3 +71,5 @@ async function savePointToDB() {
 }
 
 module.exports = { savePointToDB };
+
+savePointToDB();
