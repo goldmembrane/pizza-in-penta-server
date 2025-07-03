@@ -42,6 +42,9 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-blink-features=AutomationControlled",
+        "--disable-gpu",
+        "--single-process",
+        "--no-zygote",
         `--proxy-server=${proxyUrl}`,
       ],
     });
