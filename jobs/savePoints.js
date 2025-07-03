@@ -71,5 +71,3 @@ async function savePointToDB() {
 }
 
 module.exports = { savePointToDB };
-
-savePointToDB();
