@@ -41,4 +41,6 @@ model PointMetric {
   timeSlot  String
   point     Int
   createdAt DateTime @default(now())
+
+  @@unique([date, timeSlot])
 }

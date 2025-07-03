@@ -35,7 +35,7 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
 
   try {
     browser = await puppeteer.launch({
-      executablePath: "/usr/bin/chromium-browser", // 필요에 따라 변경
+      // executablePath: "/usr/bin/chromium-browser", // 필요에 따라 변경
       headless: "new",
       args: [
         "--no-sandbox",
