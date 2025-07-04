@@ -4,9 +4,9 @@ require("dotenv").config();
 
 function getRandomUserAgent() {
   const agents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)...",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X...)",
-    "Mozilla/5.0 (X11; Linux x86_64)...",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
   ];
   return agents[Math.floor(Math.random() * agents.length)];
 }
@@ -55,24 +55,44 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
 
     const result = await page.evaluate(() => {
       const elements = [...document.querySelectorAll('[aria-label$="%"]')];
-
       let realtime = null;
       let average = null;
+
+      const now = new Date();
+      const currentHour = now.toLocaleString("en-US", {
+        timeZone: "America/New_York",
+        hour: "numeric",
+        hour12: false,
+      });
 
       for (const el of elements) {
         const label = el.getAttribute("aria-label");
         if (!label) continue;
 
+        // 1. 실시간 + 평균 혼합
         if (label.includes("현재 붐비는") && label.includes("일반적으로는")) {
+          const realtimeMatch = label.match(/현재 붐비는 정도\s?(\d{1,3})%/);
+          const averageMatch = label.match(/일반적으로는\s?(\d{1,3})%/);
+          if (realtimeMatch) realtime = parseInt(realtimeMatch[1]);
+          if (averageMatch) average = parseInt(averageMatch[1]);
+        }
+
+        // 2. 실시간만 있는 경우
+        else if (label.includes("현재 붐비는")) {
           const match = label.match(/현재 붐비는 정도\s?(\d{1,3})%/);
-          if (match) {
-            realtime = parseInt(match[1]);
-          }
-        } else if (!average) {
-          const match = label.match(/\d{1,3}%/);
-          if (match) {
-            average = parseInt(match[0]);
-          }
+          if (match) realtime = parseInt(match[1]);
+        }
+
+        // 3. 평균만 있는 경우: 시간대 일치해야
+        else if (
+          !label.includes("현재 붐비는") &&
+          !label.includes("일반적으로는") &&
+          new RegExp(`^${currentHour}시.*붐비는 정도\\s?(\\d{1,3})%`).test(
+            label
+          )
+        ) {
+          const match = label.match(/\d{1,2}시.*붐비는 정도\s?(\d{1,3})%/);
+          if (match) average = parseInt(match[1]);
         }
       }
 
