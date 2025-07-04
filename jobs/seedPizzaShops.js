@@ -7,21 +7,38 @@ const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
 const PENTAGON_LAT = 38.8719;
 const PENTAGON_LNG = -77.0563;
-const RADIUS_METERS = 3200;
+const RADIUS_METERS = 8046; // 5마일
 
 async function searchPizzaShopsNearby() {
-  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json`;
-  const res = await axios.get(url, {
-    params: {
+  const allResults = [];
+  let nextPageToken = null;
+  let page = 1;
+
+  do {
+    const params = {
       location: `${PENTAGON_LAT},${PENTAGON_LNG}`,
       radius: RADIUS_METERS,
       keyword: "pizza",
       type: "restaurant",
       key: GOOGLE_API_KEY,
-    },
-  });
+    };
+    if (nextPageToken) {
+      params.pagetoken = nextPageToken;
+      await new Promise((r) => setTimeout(r, 3000)); // token 활성화 대기
+    }
 
-  return res.data.results;
+    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json`;
+    const res = await axios.get(url, { params });
+
+    if (res.data.results) {
+      allResults.push(...res.data.results);
+    }
+
+    nextPageToken = res.data.next_page_token;
+    page++;
+  } while (nextPageToken && page <= 3); // 최대 3페이지
+
+  return allResults;
 }
 
 async function seedPizzaShops() {
