@@ -48,7 +48,6 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
 
     const page = await context.newPage();
 
-    // 차단 리소스 최소화
     await page.route("**/*", (route) => {
       const blocked = ["image", "stylesheet", "font", "media"];
       if (blocked.includes(route.request().resourceType())) route.abort();
@@ -58,69 +57,44 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
     await page.goto(url, { waitUntil: "load", timeout: 60000 });
     await page.waitForTimeout(5000);
 
-    // 혼잡도 요소 대기
-    await page.waitForSelector("div[aria-label*='현재 붐비는 정도']", {
-      timeout: 15000,
-    });
-
     const result = await page.evaluate(() => {
       try {
-        const el = [
-          ...document.querySelectorAll("div[aria-label*='현재 붐비는 정도']"),
-        ].find((el) =>
-          el.getAttribute("aria-label")?.includes("현재 붐비는 정도")
-        );
+        const realtimeEl = document.querySelector("div.fNc7Ne.mQXJne"); // 빨간 실시간 막대
+        const averageEls = Array.from(
+          document.querySelectorAll("div.fNc7Ne")
+        ).filter((el) => !el.classList.contains("mQXJne"));
 
-        if (!el) {
-          return {
-            popularity: null,
-            source: null,
-            average: null,
-            reason: "Element not found",
-          };
-        }
+        const realtimeLabel = realtimeEl?.getAttribute("aria-label");
+        const realtime = realtimeLabel
+          ? parseInt(realtimeLabel.replace("%", ""))
+          : null;
 
-        const label = el.getAttribute("aria-label");
-        const realtime = label?.match(/현재 붐비는 정도:\s*(\d{1,3})%/);
-        const avg = label?.match(/\(일반적으로는\s*(\d{1,3})%\)/);
-
-        if (realtime && avg) {
-          return {
-            popularity: parseInt(realtime[1]),
-            source: "realtime",
-            average: parseInt(avg[1]),
-          };
-        }
-        if (realtime) {
-          return {
-            popularity: parseInt(realtime[1]),
-            source: "realtime",
-            average: null,
-          };
-        }
-        if (avg) {
-          return {
-            popularity: parseInt(avg[1]),
-            source: "average",
-            average: parseInt(avg[1]),
-          };
-        }
+        const average = averageEls
+          .map((el) =>
+            parseInt(el.getAttribute("aria-label")?.replace("%", "") || 0)
+          )
+          .reduce((max, val) => (val > max ? val : max), 0);
 
         return {
-          popularity: null,
-          source: null,
-          average: null,
-          reason: "Parsing failed",
+          popularity: realtime ?? average ?? null,
+          source: realtime !== null ? "realtime" : "average",
+          average: average,
+          rawLabel: realtimeLabel ?? null,
         };
       } catch (e) {
         return {
           popularity: null,
           source: null,
           average: null,
-          reason: `Eval error: ${e.message}`,
+          rawLabel: null,
+          reason: "Eval error: " + e.message,
         };
       }
     });
+
+    console.log(
+      `✅ 저장 완료: ${placeId} → ${result.popularity}% (${result.source})`
+    );
 
     await browser.close();
     return result;
@@ -140,6 +114,7 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
       popularity: null,
       source: null,
       average: null,
+      rawLabel: null,
       reason: `Exception: ${err.message}`,
     };
   }
