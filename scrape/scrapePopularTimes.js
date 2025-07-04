@@ -56,42 +56,42 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
     const result = await page.evaluate(() => {
       const now = new Date();
       const hour = now.getHours();
-      const elements = [...document.querySelectorAll('[aria-label$="%"]')];
-
       let realtime = null;
       let average = null;
 
-      for (const el of elements) {
-        const label = el.getAttribute("aria-label");
-        if (!label) continue;
+      // ✅ 실시간 막대(class=fMc7Ne mQXJne) 먼저 우선 추출
+      const realtimeEl = document.querySelector("div.fMc7Ne.mQXJne");
+      if (realtimeEl && realtimeEl.getAttribute("aria-label")) {
+        const label = realtimeEl.getAttribute("aria-label");
+        const rMatch = label.match(/\b(100|[1-9]?[0-9])%/);
 
-        // 실시간 + 평균
-        if (label.includes("현재 붐비는") && label.includes("일반적으로는")) {
-          const rMatch = label.match(/현재 붐비는 정도\s?(\d{1,3})%/);
-          const aMatch = label.match(/일반적으로는\s?(\d{1,3})%/);
-          if (rMatch) realtime = parseInt(rMatch[1]);
-          if (aMatch) average = parseInt(aMatch[1]);
-          break;
-        }
+        realtime = parseInt(rMatch[1], 10);
+      }
 
-        // 실시간만
-        if (label.includes("현재 붐비는")) {
-          const match = label.match(/현재 붐비는 정도\s?(\d{1,3})%/);
-          if (match) realtime = parseInt(match[1]);
-          break;
-        }
+      // ✅ fallback: aria-label 기반 전체 검사
+      if (realtime === null && average === null) {
+        const elements = [...document.querySelectorAll('[aria-label$="%"]')];
 
-        // 평균만 (현재 시간 기준)
-        const hourMatch = label.match(/(\d{1,2})시.*붐비는 정도\s?(\d{1,3})%/);
-        if (hourMatch && parseInt(hourMatch[1]) === hour) {
-          average = parseInt(hourMatch[2]);
-          break;
+        for (const el of elements) {
+          const label = el.getAttribute("aria-label");
+          if (!label) continue;
+
+          // 평균만 (현재 시간 기준)
+          const hourMatch = label.match(
+            /(\d{1,2})시.*붐비는 정도\s?(\d{1,3})%/
+          );
+          if (hourMatch && parseInt(hourMatch[1]) === hour) {
+            average = parseInt(hourMatch[2]);
+            break;
+          }
         }
       }
 
       if (realtime !== null)
         return { popularity: realtime, source: "realtime" };
-      if (average !== null) return { popularity: average, source: "average" };
+      if (average !== null && realtime === null)
+        return { popularity: average, source: "average" };
+
       return {
         popularity: null,
         source: null,
