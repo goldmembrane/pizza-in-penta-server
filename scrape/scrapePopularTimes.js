@@ -5,7 +5,6 @@ require("dotenv").config();
 
 puppeteer.use(StealthPlugin());
 
-// 무작위 User-Agent
 function getRandomUserAgent() {
   const agents = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
@@ -15,7 +14,6 @@ function getRandomUserAgent() {
   return agents[Math.floor(Math.random() * agents.length)];
 }
 
-// JSON 프록시 로드
 function loadProxies() {
   const raw = fs.readFileSync("./proxies.json", "utf-8");
   return JSON.parse(raw);
@@ -35,7 +33,6 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
 
   try {
     browser = await puppeteer.launch({
-      executablePath: "/usr/bin/chromium-browser", // 필요에 따라 변경
       headless: "new",
       args: [
         "--no-sandbox",
@@ -51,7 +48,6 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
 
     const page = await browser.newPage();
 
-    // 프록시 인증
     await page.authenticate({
       username: proxy.username,
       password: proxy.password,
@@ -62,7 +58,6 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
       "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
     });
 
-    // 불필요 리소스 차단
     await page.setRequestInterception(true);
     page.on("request", (req) => {
       const blocked = ["image", "stylesheet", "font", "media"];
@@ -75,21 +70,34 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
 
     await page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, "webdriver", { get: () => false });
+      window.chrome = { runtime: {} };
+      Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3] });
+      Object.defineProperty(navigator, "languages", {
+        get: () => ["ko-KR", "en-US"],
+      });
+      navigator.permissions.query = (params) =>
+        Promise.resolve({
+          state: params.name === "notifications" ? "denied" : "granted",
+        });
     });
 
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-    await new Promise((res) => setTimeout(res, 9000));
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+
+    await page.waitForSelector(
+      "div[aria-label*='현재 붐비는 정도'], div[aria-label*='Live busyness']",
+      { timeout: 15000 }
+    );
+
+    await new Promise((res) => setTimeout(res, 12000));
 
     const data = await page.evaluate(() => {
       const elements = Array.from(
-        document.querySelectorAll("div[aria-label*='현재 붐비는 정도']")
+        document.querySelectorAll(
+          "div[aria-label*='현재 붐비는 정도'], div[aria-label*='Live busyness']"
+        )
       );
 
-      const target = elements.find((el) => {
-        const label = el.getAttribute("aria-label");
-        return label && label.includes("현재 붐비는 정도");
-      });
-
+      const target = elements.find((el) => el.getAttribute("aria-label"));
       if (!target) {
         return {
           popularity: null,
@@ -99,8 +107,12 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
       }
 
       const label = target.getAttribute("aria-label");
-      const currentMatch = label.match(/현재 붐비는 정도:\s*(\d{1,3})%/);
-      const averageMatch = label.match(/\(일반적으로는\s*(\d{1,3})%\)/);
+      const currentMatch =
+        label.match(/현재 붐비는 정도:\s*(\d{1,3})%/) ||
+        label.match(/Live busyness:\s*(\d{1,3})%/);
+      const averageMatch =
+        label.match(/\(일반적으로는\s*(\d{1,3})%\)/) ||
+        label.match(/\(Usually\s*(\d{1,3})%\)/);
 
       if (currentMatch) {
         return { popularity: parseInt(currentMatch[1]), source: "realtime" };
