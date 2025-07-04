@@ -59,7 +59,7 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
 
     const result = await page.evaluate(() => {
       try {
-        const realtimeEl = document.querySelector("div.fNc7Ne.mQXJne"); // 빨간 실시간 막대
+        const realtimeEl = document.querySelector("div.fNc7Ne.mQXJne");
         const averageEls = Array.from(
           document.querySelectorAll("div.fNc7Ne")
         ).filter((el) => !el.classList.contains("mQXJne"));
@@ -69,33 +69,37 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
           ? parseInt(realtimeLabel.replace("%", ""))
           : null;
 
-        const average = averageEls
-          .map((el) =>
-            parseInt(el.getAttribute("aria-label")?.replace("%", "") || 0)
-          )
-          .reduce((max, val) => (val > max ? val : max), 0);
+        const averageValues = averageEls
+          .map((el) => el.getAttribute("aria-label"))
+          .filter((label) => label && label.includes("%"))
+          .map((label) => parseInt(label.replace("%", "")));
+
+        const average =
+          averageValues.length > 0 ? Math.max(...averageValues) : null;
+
+        // ✅ 혼잡도 정보가 하나도 없으면 저장하지 않고 건너뜀
+        if (realtime === null && average === null) return null;
 
         return {
-          popularity: realtime ?? average ?? null,
+          popularity: realtime ?? average,
           source: realtime !== null ? "realtime" : "average",
-          average: average,
+          average,
           rawLabel: realtimeLabel ?? null,
         };
       } catch (e) {
-        return {
-          popularity: null,
-          source: null,
-          average: null,
-          rawLabel: null,
-          reason: "Eval error: " + e.message,
-        };
+        return null;
       }
     });
+
+    if (!result) {
+      console.log(`⚠️ 혼잡도 데이터 없음 → 저장 생략: ${placeId}`);
+      await browser.close();
+      return null;
+    }
 
     console.log(
       `✅ 저장 완료: ${placeId} → ${result.popularity}% (${result.source})`
     );
-
     await browser.close();
     return result;
   } catch (err) {
@@ -110,13 +114,7 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
       return scrapePopularTimes(placeId, attempt + 1, maxAttempts);
     }
 
-    return {
-      popularity: null,
-      source: null,
-      average: null,
-      rawLabel: null,
-      reason: `Exception: ${err.message}`,
-    };
+    return null;
   }
 }
 
