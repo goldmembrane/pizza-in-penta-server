@@ -12,6 +12,7 @@
     "express": "^5.1.0",
     "fs": "^0.0.1-security",
     "path": "^0.12.7",
+    "playwright": "^1.53.2",
     "puppeteer": "^24.10.2",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
