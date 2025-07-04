@@ -3,3 +3,4 @@ node_modules
 .env
 
 /generated/prisma
+prisma/migrations/20250704050251_start_by_today/migration.sql
