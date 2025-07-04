@@ -20,7 +20,6 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
   const proxy = proxies[Math.floor(Math.random() * proxies.length)];
   const proxyUrl = `http://${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`;
   const userAgent = getRandomUserAgent();
-
   const url = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
 
   console.log(
@@ -55,13 +54,16 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
     });
 
     await page.goto(url, { waitUntil: "load", timeout: 60000 });
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(5000); // 안정성 확보
 
     const result = await page.evaluate(() => {
       try {
-        const realtimeEl = document.querySelector("div.fNc7Ne.mQXJne");
+        const realtimeEl = Array.from(
+          document.querySelectorAll("div[aria-label$='%']")
+        ).find((el) => el.classList.contains("mQXJne"));
+
         const averageEls = Array.from(
-          document.querySelectorAll("div.fNc7Ne")
+          document.querySelectorAll("div[aria-label$='%']")
         ).filter((el) => !el.classList.contains("mQXJne"));
 
         const realtimeLabel = realtimeEl?.getAttribute("aria-label");
@@ -77,40 +79,37 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
         const average =
           averageValues.length > 0 ? Math.max(...averageValues) : null;
 
-        // ✅ 혼잡도 정보가 하나도 없으면 저장하지 않고 건너뜀
         if (realtime === null && average === null) return null;
 
         return {
           popularity: realtime ?? average,
           source: realtime !== null ? "realtime" : "average",
-          average,
-          rawLabel: realtimeLabel ?? null,
         };
       } catch (e) {
         return null;
       }
     });
 
+    await browser.close();
+
     if (!result) {
       console.log(`⚠️ 혼잡도 데이터 없음 → 저장 생략: ${placeId}`);
-      await browser.close();
       return null;
     }
 
     console.log(
       `✅ 저장 완료: ${placeId} → ${result.popularity}% (${result.source})`
     );
-    await browser.close();
     return result;
   } catch (err) {
-    console.error(`❌ [Attempt ${attempt}] Error: ${err.message}`);
     if (browser) await browser.close();
+    console.error(`❌ [Attempt ${attempt}] Error: ${err.message}`);
 
-    const isRetryable =
+    const retryable =
       err.message.includes("detached") || err.message.includes("timeout");
-    if (isRetryable && attempt < maxAttempts) {
+    if (retryable && attempt < maxAttempts) {
       console.warn("🔁 재시도 중...");
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((res) => setTimeout(res, 2000));
       return scrapePopularTimes(placeId, attempt + 1, maxAttempts);
     }
 
