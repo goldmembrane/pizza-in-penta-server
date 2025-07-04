@@ -28,10 +28,10 @@ function isBusinessHour() {
 }
 
 async function scrapeAllShops() {
-  if (!isBusinessHour()) {
-    console.warn("⏰ [워싱턴 기준] 영업시간이 아니므로 수집 건너뜀");
-    return;
-  }
+  // if (!isBusinessHour()) {
+  //   console.warn("⏰ [워싱턴 기준] 영업시간이 아니므로 수집 건너뜀");
+  //   return;
+  // }
 
   const date = dayjs().tz("America/New_York").format("YYYY-MM-DD");
   const timeSlot = getTimeSlot();
