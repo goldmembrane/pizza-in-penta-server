@@ -12,7 +12,7 @@ const prisma = new PrismaClient();
 
 const PENTAGON_LAT = 38.8719;
 const PENTAGON_LNG = -77.0563;
-const RADIUS_MILES = 2;
+const RADIUS_MILES = 5;
 
 function getTimeSlot() {
   const hour = dayjs().tz("America/New_York").hour();
@@ -45,18 +45,19 @@ async function scrapeAllShops() {
       )) AS distance_miles
     FROM PizzaShop
     HAVING distance_miles <= ${RADIUS_MILES}
+    ORDER BY distance_miles ASC
   `;
 
   for (const shop of shops) {
     try {
       console.log(`📍 [${shop.name}] 혼잡도 수집 중...`);
-      const { popularity, source, reason } = await scrapePopularTimes(
-        shop.placeId
-      );
+      const result = await scrapePopularTimes(shop.placeId);
 
-      if (popularity === null) {
+      if (!result || result.popularity === null) {
         console.warn(
-          `⚠️ ${shop.name}: 혼잡도 추출 실패 (${reason || "알 수 없는 원인"})`
+          `⚠️ ${shop.name}: 혼잡도 추출 실패 (${
+            result?.reason || "알 수 없는 원인"
+          })`
         );
         continue;
       }
@@ -66,13 +67,13 @@ async function scrapeAllShops() {
           shopId: shop.id,
           date: new Date(date),
           timeSlot,
-          popularity,
-          source,
+          popularity: result.popularity,
+          source: result.source,
         },
       });
 
       console.log(
-        `✅ 저장 완료: ${shop.name} ${timeSlot} → ${popularity}% (${source})`
+        `✅ 저장 완료: ${shop.name} ${timeSlot} → ${result.popularity}% (${result.source})`
       );
     } catch (err) {
       console.error(`❌ ${shop.name} 에러:`, err.message);
