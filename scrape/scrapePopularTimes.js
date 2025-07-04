@@ -1,12 +1,18 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
 require("dotenv").config();
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 function getRandomUserAgent() {
   const agents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
   ];
   return agents[Math.floor(Math.random() * agents.length)];
 }
@@ -53,8 +59,11 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForTimeout(15000);
 
-    const result = await page.evaluate(() => {
+    const currentHour = dayjs().tz("America/New_York").hour();
+
+    const result = await page.evaluate((currentHour) => {
       const elements = [...document.querySelectorAll('[aria-label$="%"]')];
+
       let realtime = null;
       let average = null;
 
@@ -65,27 +74,32 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
         // 실시간 + 평균 함께 있는 경우
         if (label.includes("현재 붐비는") && label.includes("일반적으로는")) {
           const rMatch = label.match(/현재 붐비는 정도\s?(\d{1,3})%/);
-          const aMatch = label.match(/일반적으로는\s?(\d{1,3})%/);
           if (rMatch) realtime = parseInt(rMatch[1]);
-          if (aMatch) average = parseInt(aMatch[1]);
-          continue;
+          break;
         }
 
         // 실시간만 있는 경우
-        if (label.includes("현재 붐비는") && realtime === null) {
+        if (label.includes("현재 붐비는")) {
           const match = label.match(/현재 붐비는 정도\s?(\d{1,3})%/);
-          if (match) realtime = parseInt(match[1]);
-          continue;
+          if (match) {
+            realtime = parseInt(match[1]);
+            break;
+          }
         }
 
-        // 평균만 있는 경우 (시간 기반 문구)
-        if (
-          !label.includes("현재 붐비는") &&
-          !label.includes("일반적으로는") &&
-          /\d{1,2}시.*붐비는 정도\s?(\d{1,3})%/.test(label)
-        ) {
-          const match = label.match(/\d{1,2}시.*붐비는 정도\s?(\d{1,3})%/);
-          if (match) average = parseInt(match[1]);
+        // 평균만 있는 경우 ("13시에 붐비는 정도 27%") 중 현재 시간 기준
+        if (/\d{1,2}시.*붐비는 정도\s?(\d{1,3})%/.test(label)) {
+          const hourMatch = label.match(
+            /(\d{1,2})시.*붐비는 정도\s?(\d{1,3})%/
+          );
+          if (hourMatch) {
+            const labelHour = parseInt(hourMatch[1]);
+            const percent = parseInt(hourMatch[2]);
+            if (labelHour === currentHour) {
+              average = percent;
+              break;
+            }
+          }
         }
       }
 
@@ -93,7 +107,7 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
         return { popularity: realtime, source: "realtime" };
       if (average !== null) return { popularity: average, source: "average" };
       return null;
-    });
+    }, currentHour);
 
     await browser.close();
     return result;
