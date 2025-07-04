@@ -1,12 +1,11 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
-require("dotenv").config();
 
 function getRandomUserAgent() {
   const agents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)...",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X...)",
-    "Mozilla/5.0 (X11; Linux x86_64)...",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/113.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/114.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/115.0.0.0 Safari/537.36",
   ];
   return agents[Math.floor(Math.random() * agents.length)];
 }
@@ -22,10 +21,10 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
   const proxyUrl = `http://${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`;
   const userAgent = getRandomUserAgent();
 
-  const url = `https://www.google.com/maps/search/?api=1&query=Extreme+Pizza&query_place_id=${placeId}`;
+  const url = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
 
   console.log(
-    `🌐 [Attempt ${attempt}] Using proxy: ${proxy.username}@${proxy.host}`
+    `📍 [Attempt ${attempt}] Using proxy: ${proxy.username}@${proxy.host}`
   );
 
   let browser;
@@ -40,26 +39,23 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
     });
 
     const context = await browser.newContext({
-      userAgent,
       locale: "ko-KR",
+      userAgent,
+      extraHTTPHeaders: {
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+      },
     });
 
     const page = await context.newPage();
 
-    // 차단 리소스 최소화 (Playwright는 자동 처리 좋음)
+    // 차단 리소스 최소화
     await page.route("**/*", (route) => {
       const blocked = ["image", "stylesheet", "font", "media"];
-      if (blocked.includes(route.request().resourceType())) {
-        route.abort();
-      } else {
-        route.continue();
-      }
+      if (blocked.includes(route.request().resourceType())) route.abort();
+      else route.continue();
     });
 
-    // 페이지 이동
     await page.goto(url, { waitUntil: "load", timeout: 60000 });
-
-    // 안정성 확보 대기
     await page.waitForTimeout(5000);
 
     // 혼잡도 요소 대기
@@ -67,7 +63,7 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
       timeout: 15000,
     });
 
-    const data = await page.evaluate(() => {
+    const result = await page.evaluate(() => {
       try {
         const el = [
           ...document.querySelectorAll("div[aria-label*='현재 붐비는 정도']"),
@@ -75,39 +71,66 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
           el.getAttribute("aria-label")?.includes("현재 붐비는 정도")
         );
 
-        if (!el)
+        if (!el) {
           return {
             popularity: null,
             source: null,
+            average: null,
             reason: "Element not found",
           };
+        }
 
         const label = el.getAttribute("aria-label");
         const realtime = label?.match(/현재 붐비는 정도:\s*(\d{1,3})%/);
         const avg = label?.match(/\(일반적으로는\s*(\d{1,3})%\)/);
 
-        if (realtime)
-          return { popularity: parseInt(realtime[1]), source: "realtime" };
-        if (avg) return { popularity: parseInt(avg[1]), source: "average" };
-        return { popularity: null, source: null, reason: "Parsing failed" };
+        if (realtime && avg) {
+          return {
+            popularity: parseInt(realtime[1]),
+            source: "realtime",
+            average: parseInt(avg[1]),
+          };
+        }
+        if (realtime) {
+          return {
+            popularity: parseInt(realtime[1]),
+            source: "realtime",
+            average: null,
+          };
+        }
+        if (avg) {
+          return {
+            popularity: parseInt(avg[1]),
+            source: "average",
+            average: parseInt(avg[1]),
+          };
+        }
+
+        return {
+          popularity: null,
+          source: null,
+          average: null,
+          reason: "Parsing failed",
+        };
       } catch (e) {
         return {
           popularity: null,
           source: null,
-          reason: "Eval error: " + e.message,
+          average: null,
+          reason: `Eval error: ${e.message}`,
         };
       }
     });
 
     await browser.close();
-    return data;
+    return result;
   } catch (err) {
     console.error(`❌ [Attempt ${attempt}] Error: ${err.message}`);
     if (browser) await browser.close();
 
-    const isDetached =
+    const isRetryable =
       err.message.includes("detached") || err.message.includes("timeout");
-    if (isDetached && attempt < maxAttempts) {
+    if (isRetryable && attempt < maxAttempts) {
       console.warn("🔁 재시도 중...");
       await new Promise((r) => setTimeout(r, 2000));
       return scrapePopularTimes(placeId, attempt + 1, maxAttempts);
@@ -116,6 +139,7 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
     return {
       popularity: null,
       source: null,
+      average: null,
       reason: `Exception: ${err.message}`,
     };
   }
