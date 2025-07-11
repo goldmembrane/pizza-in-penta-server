@@ -51,7 +51,9 @@ async function scrapePopularTimes(placeId, attempt = 1, maxAttempts = 3) {
     });
 
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(15000);
+    await page
+      .waitForSelector("div.fMc7Ne.mQXJne", { timeout: 10000 })
+      .catch(() => null);
 
     const result = await page.evaluate(() => {
       const now = new Date();
