@@ -24,14 +24,14 @@ async function savePointToDB() {
     return;
   }
 
-  const washingtonTime = dayjs(latestRecord.date).tz("America/New_York");
+  const washingtonTime = dayjs(latestRecord.date);
   const latestDate = washingtonTime.format("YYYY-MM-DD");
   const hour = washingtonTime.hour();
   const latestTimeSlot =
     hour < 6 ? "00-06" : hour < 12 ? "06-12" : hour < 18 ? "12-18" : "18-24";
 
   const filtered = allRecords.filter((r) => {
-    const t = dayjs(r.date).tz("America/New_York");
+    const t = dayjs(r.date);
     const sameDate = t.format("YYYY-MM-DD") === latestDate;
     const inSlot =
       (t.hour() < 6 && latestTimeSlot === "00-06") ||
